@@ -3,7 +3,7 @@ services:
     name: karada-map-backend
     env: node
     plan: free
-    rootDir: map_backend
+    rootDir: .
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
