@@ -7,6 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
+type UpdateStatusRequest struct {
+	Status IncidentStatus `json:"status" binding:"required"`
+}
+
 type Severity string
 
 const (
