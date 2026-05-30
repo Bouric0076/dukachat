@@ -37,7 +37,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _loadingLocation = true;
   bool _loadingFacilities = true;
   bool _loadingRoute = false;
-  String? _error;
+  bool _liveFacilitiesLoaded = false;
 
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
@@ -123,29 +123,45 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   Future<void> _loadFacilities() async {
     setState(() {
       _loadingFacilities = true;
-      _error = null;
       _selectedFacility = null;
       _route = null;
+      _liveFacilitiesLoaded = false;
+      _facilities = _mapService.seedNearbyFacilities(center: _searchCenter);
     });
 
+    if (mounted) {
+      setState(() => _loadingFacilities = false);
+    }
+
+    if (_facilities.isNotEmpty) {
+      await _selectFacility(_facilities.first, fitMap: true);
+    }
+
+    unawaited(_refreshLiveFacilities());
+  }
+
+  Future<void> _refreshLiveFacilities() async {
     try {
       final facilities = await _mapService.fetchNearbyFacilities(
         center: _searchCenter,
       );
-      if (!mounted) return;
-      setState(() => _facilities = facilities);
+      if (!mounted || facilities.isEmpty) return;
 
-      if (facilities.isNotEmpty) {
+      final selectedId = _selectedFacility?.id;
+      setState(() {
+        _facilities = facilities;
+        _liveFacilitiesLoaded = true;
+      });
+
+      final selectedExists =
+          selectedId != null && facilities.any((item) => item.id == selectedId);
+      if (!selectedExists) {
         await _selectFacility(facilities.first, fitMap: true);
       }
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _error = error.toString();
-        _facilities = [];
-      });
-    } finally {
-      if (mounted) setState(() => _loadingFacilities = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _liveFacilitiesLoaded = false);
+      }
     }
   }
 
@@ -153,29 +169,33 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     EmergencyFacility facility, {
     bool fitMap = false,
   }) async {
+    final estimatedRoute = _mapService.estimateRoute(
+      from: _userLatLng,
+      to: facility.location,
+    );
     setState(() {
       _selectedFacility = facility;
-      _loadingRoute = true;
-      _route = null;
-      _error = null;
+      _loadingRoute = false;
+      _route = estimatedRoute;
     });
 
+    if (fitMap) _fitRoute(estimatedRoute.points);
+
+    unawaited(_refreshLiveRoute(facility));
+  }
+
+  Future<void> _refreshLiveRoute(EmergencyFacility facility) async {
     try {
       final route = await _mapService.fetchDrivingRoute(
         from: _userLatLng,
         to: facility.location,
       );
-      if (!mounted) return;
+      if (!mounted || _selectedFacility?.id != facility.id) return;
 
       setState(() => _route = route);
-      if (fitMap) _fitRoute(route.points);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _error = error.toString();
-      });
-    } finally {
-      if (mounted) setState(() => _loadingRoute = false);
+      if (route.points.length > 1) _fitRoute(route.points);
+    } catch (_) {
+      // Keep the estimated route already on screen.
     }
   }
 
@@ -266,10 +286,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     child: Column(
                       children: [
                         _buildFilterBar(),
-                        if (_error != null) ...[
-                          const SizedBox(height: 8),
-                          _buildErrorBanner(),
-                        ],
+                        const SizedBox(height: 8),
+                        _buildStatusBanner(),
                       ],
                     ),
                   ),
@@ -520,24 +538,29 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildErrorBanner() {
+  Widget _buildStatusBanner() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.error,
+        color: const Color(0xFFF5F7FA),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: Colors.white, size: 18),
+          const Icon(Icons.tips_and_updates_rounded,
+              color: AppColors.dark, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _error!,
+              _loadingFacilities
+                  ? 'Finding nearby responders...'
+                  : !_liveFacilitiesLoaded
+                      ? 'Using local responder coverage until live data is available.'
+                      : 'Nearby responders are ready.',
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.dark,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
