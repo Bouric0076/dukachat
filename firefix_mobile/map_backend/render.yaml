@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: firefix-map-backend
+    env: node
+    plan: starter
+    rootDir: map_backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: ORS_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
