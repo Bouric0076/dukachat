@@ -231,7 +231,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       TileLayer(
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.firefix.firefix_mobile',
+                        userAgentPackageName: 'com.bouric.karada',
                       ),
                       if (_route != null)
                         PolylineLayer(

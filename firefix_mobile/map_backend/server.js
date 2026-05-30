@@ -20,7 +20,7 @@ app.use(express.json({ limit: '200kb' }));
 app.use(morgan('combined'));
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'firefix-map-backend' });
+  res.json({ ok: true, service: 'karada-map-backend' });
 });
 
 app.get('/facilities', async (req, res) => {
@@ -112,7 +112,7 @@ app.use((_req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`firefix-map-backend listening on ${port}`);
+  console.log(`karada-map-backend listening on ${port}`);
 });
 
 async function fetchFacilities({ lat, lng, radius }) {

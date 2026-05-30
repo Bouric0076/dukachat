@@ -1,6 +1,6 @@
-# FireFix Mobile
+# Karada
 
-FireFix is a Flutter emergency reporting app with a dashboard home, a dedicated incident report flow, and a live map for nearby fire and medical responders.
+Karada is a Flutter emergency reporting app with a dashboard home, a dedicated incident report flow, and a live map for nearby fire and medical responders.
 
 ## Mobile app
 

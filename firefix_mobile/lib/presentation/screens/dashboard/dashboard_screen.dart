@@ -137,7 +137,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'FireFix Dashboard',
+                  'Karada Dashboard',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,

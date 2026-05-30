@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
+
+  Future<void> _callEmergency() async {
+    final uri = Uri(scheme: 'tel', path: AppConstants.emergencyNumber);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -11,291 +21,231 @@ class AboutScreen extends StatelessWidget {
       backgroundColor: AppColors.neutral,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 24),
-
-              // ── LOGO ──
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withOpacitySafe(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.local_fire_department_rounded,
-                    color: Colors.white,
-                    size: 42,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              const Text(
-                'FireFix Kenya',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.dark,
-                ),
-              ),
-
-              const SizedBox(height: 4),
-
-              const Text(
-                'Huduma ya Dharura ya Moto',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.muted,
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── EMERGENCY CALL ──
-              _CallCard(),
-
-              const SizedBox(height: 20),
-
-              // ── INFO CARDS ──
-              const _InfoCard(
-                icon: Icons.flash_on_rounded,
-                color: AppColors.tertiary,
-                title: 'Jibu la Haraka',
-                body:
-                    'Ripoti ya moto inafikia dispatcher kwa sekunde chache. Hakuna kupoteza muda kupiga simu.',
-              ),
-
-              const SizedBox(height: 12),
-
-              const _InfoCard(
-                icon: Icons.location_on_rounded,
-                color: AppColors.secondary,
-                title: 'GPS Sahihi',
-                body:
-                    'Mahali pako halisi kinatumwa moja kwa moja kwa timu ya zimamoto iliyo karibu nawe.',
-              ),
-
-              const SizedBox(height: 12),
-
-              const _InfoCard(
-                icon: Icons.shield_rounded,
-                color: AppColors.success,
-                title: 'Usalama Kwanza',
-                body:
-                    'Maagizo ya usalama yanakusaidia ukisubiri msaada. Kaa salama kila wakati.',
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── HOW IT WORKS ──
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Jinsi Inavyofanya Kazi',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.dark,
-                      ),
-                    ),
-                    SizedBox(height: 14),
-                    _Step(number: '1', text: 'Bonyeza kitufe cha SOS'),
-                    _Step(number: '2', text: 'Jaza maelezo ya dharura'),
-                    _Step(number: '3', text: 'Tuma ripoti yako'),
-                    _Step(
-                        number: '4',
-                        text: 'Dispatcher anapokea arifa moja kwa moja'),
-                    _Step(
-                        number: '5', text: 'Gari la zimamoto linaelekea kwako'),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              const Text(
-                'BUILD54 Hackathon 2026',
-                style: TextStyle(fontSize: 12, color: AppColors.muted),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Built in Nairobi',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.muted,
-                ),
-              ),
-              const SizedBox(height: 24),
+              _buildHero(context),
+              const SizedBox(height: 18),
+              _buildFeatureGrid(),
+              const SizedBox(height: 18),
+              _buildProcessCard(),
+              const SizedBox(height: 18),
+              _buildSupportCard(_callEmergency),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _CallCard extends StatelessWidget {
-  Future<void> _call() async {
-    final uri = Uri(scheme: 'tel', path: '0800723999');
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _call,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.primary,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withOpacitySafe(0.3),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+  Widget _buildHero(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dark.withOpacitySafe(0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacitySafe(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.local_fire_department_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Karada',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Emergency reporting and response coordination',
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const _LiveBadge(),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text(
+            'Designed for fast incident reporting, nearby responder discovery, and route-aware dispatch.',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.45,
             ),
-          ],
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.phone_rounded, color: Colors.white, size: 28),
-            SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Piga Simu Moja Kwa Moja',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _callEmergency,
+                  icon: const Icon(Icons.call_rounded, size: 18),
+                  label: const Text('Call emergency'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => context.go('/'),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Back'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white24),
                   ),
                 ),
-                Text(
-                  '0800 723 999 — Bure',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-            Spacer(),
-            Icon(Icons.chevron_right, color: Colors.white70),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
-}
 
-class _InfoCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String body;
+  Widget _buildFeatureGrid() {
+    return const Row(
+      children: [
+        Expanded(
+          child: _FeatureCard(
+            icon: Icons.flash_on_rounded,
+            title: 'Fast dispatch',
+            body: 'Clean flow for immediate report capture.',
+            color: AppColors.tertiary,
+          ),
+        ),
+        SizedBox(width: 10),
+        Expanded(
+          child: _FeatureCard(
+            icon: Icons.route_rounded,
+            title: 'Live routing',
+            body: 'OpenStreetMap and OpenRouteService support.',
+            color: AppColors.secondary,
+          ),
+        ),
+      ],
+    );
+  }
 
-  const _InfoCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.body,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProcessCard() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withOpacitySafe(0.1),
-              borderRadius: BorderRadius.circular(10),
+          const Text(
+            'How it works',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: AppColors.dark,
             ),
-            child: Icon(icon, color: color, size: 20),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.dark,
-                  ),
+          const SizedBox(height: 14),
+          _step('1', 'Open the report screen and tap SOS.'),
+          _step('2', 'Confirm severity and add details if needed.'),
+          _step('3', 'The app resolves location and sends the incident.'),
+          _step('4', 'The map service finds the nearest responders.'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSupportCard(Future<void> Function() callEmergency) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacitySafe(0.08),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.primary.withOpacitySafe(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.support_agent_rounded, color: AppColors.primary),
+              SizedBox(width: 8),
+              Text(
+                'Support',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.dark,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  body,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: AppColors.muted,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'If you cannot use the app, call the emergency number immediately.',
+            style: TextStyle(
+              color: AppColors.dark,
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: callEmergency,
+              icon: const Icon(Icons.phone_rounded, size: 18),
+              label: const Text('0800 723 999'),
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _Step extends StatelessWidget {
-  final String number;
-  final String text;
-  const _Step({required this.number, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _step(String number, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 28,
+            height: 28,
             decoration: BoxDecoration(
               color: AppColors.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(9),
             ),
             child: Center(
               child: Text(
@@ -303,7 +253,7 @@ class _Step extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -313,9 +263,98 @@ class _Step extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontSize: 13,
                 color: AppColors.dark,
+                fontSize: 13,
+                height: 1.4,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveBadge extends StatelessWidget {
+  const _LiveBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.success.withOpacitySafe(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 8, color: AppColors.success),
+          SizedBox(width: 6),
+          Text(
+            'LIVE',
+            style: TextStyle(
+              color: AppColors.success,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeatureCard extends StatelessWidget {
+  const _FeatureCard({
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withOpacitySafe(0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.dark,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            body,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 12,
+              height: 1.45,
             ),
           ),
         ],

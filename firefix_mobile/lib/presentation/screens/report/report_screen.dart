@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/models/incident_model.dart';
 import '../../../data/services/incident_service.dart';
 import '../../../data/services/location_service.dart';
-import '../../widgets/sos_button.dart';
-import '../../widgets/severity_picker.dart';
 import '../../widgets/location_card.dart';
+import '../../widgets/severity_picker.dart';
+import '../../widgets/sos_button.dart';
 
 class ReportScreen extends ConsumerStatefulWidget {
   const ReportScreen({super.key});
@@ -28,12 +30,19 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
   Position? _position;
   bool _locationLoading = false;
   bool _submitting = false;
-  bool _expanded = false; // SOS tap expands form
+  bool _expanded = false;
 
   @override
   void initState() {
     super.initState();
     _fetchLocation();
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchLocation() async {
@@ -44,20 +53,22 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
         position.latitude,
         position.longitude,
       );
+      if (!mounted) return;
       setState(() {
         _position = position;
         _address = address;
       });
-    } catch (e) {
-      setState(() => _address = 'Mahali hakupatikana');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _address = 'Location unavailable');
     } finally {
-      setState(() => _locationLoading = false);
+      if (mounted) setState(() => _locationLoading = false);
     }
   }
 
   Future<void> _submitIncident() async {
     if (_position == null) {
-      _showSnack('Subiri mahali kupatikane kwanza');
+      _showSnack('Wait for your location first');
       return;
     }
 
@@ -66,7 +77,7 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     final incident = IncidentModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       description: _descriptionController.text.isEmpty
-          ? 'Moto unaripotiwa'
+          ? 'Fire incident reported'
           : _descriptionController.text,
       severity: _severity,
       latitude: _position!.latitude,
@@ -78,31 +89,26 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
 
     final success = await _incidentService.reportIncident(incident);
 
+    if (!mounted) return;
     setState(() => _submitting = false);
 
-    if (success && mounted) {
+    if (success) {
       context.go('/confirmation/${incident.id}');
-    } else {
-      _showSnack('Hitilafu imetokea. Jaribu tena.');
+      return;
     }
+
+    _showSnack('Something went wrong. Try again.');
   }
 
-  void _showSnack(String msg) {
+  void _showSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg),
+        content: Text(message),
         backgroundColor: AppColors.primary,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    _phoneController.dispose();
-    super.dispose();
   }
 
   @override
@@ -110,41 +116,25 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
     return Scaffold(
       backgroundColor: AppColors.neutral,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            children: [
-              // ── HEADER ──
-              _buildHeader(),
-
-              // ── SOS BUTTON ──
-              const SizedBox(height: 32),
-              SosButton(
-                onPressed: () => setState(() => _expanded = true),
-                isLoading: _submitting,
-              ),
-
-              const SizedBox(height: 12),
-              Text(
-                _expanded
-                    ? 'Jaza maelezo hapa chini'
-                    : 'Bonyeza kuripoti dharura',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.muted,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-
-              // ── FORM — expands after SOS tap ──
-              AnimatedSize(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeInOut,
-                child: _expanded ? _buildForm() : const SizedBox.shrink(),
-              ),
-
-              const SizedBox(height: 32),
-            ],
+        child: RefreshIndicator(
+          onRefresh: _fetchLocation,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: 18),
+                _buildEmergencyPanel(),
+                const SizedBox(height: 18),
+                _buildFormPanel(),
+                const SizedBox(height: 16),
+                _buildFooterNote(),
+              ],
+            ),
           ),
         ),
       ),
@@ -153,223 +143,401 @@ class _ReportScreenState extends ConsumerState<ReportScreen> {
 
   Widget _buildHeader() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-      decoration: const BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.dark,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.dark.withOpacitySafe(0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacitySafe(0.2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.local_fire_department_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                'FireFix Kenya',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacitySafe(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.circle, color: Colors.greenAccent, size: 8),
-                    SizedBox(width: 5),
-                    Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Text(
-            'Huduma ya Dharura ya Moto',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 13,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacitySafe(0.1),
+              borderRadius: BorderRadius.circular(16),
             ),
-          ),
-          const Text(
-            'Ripoti haraka. Msaada unakuja.',
-            style: TextStyle(
+            child: const Icon(
+              Icons.local_fire_department_rounded,
               color: Colors.white,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
+              size: 28,
             ),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Report emergency',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Capture the incident, confirm the location, and dispatch the response.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white70,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _StatusPill(
+            icon: Icons.circle,
+            label: _position == null ? 'GPS' : 'LIVE',
+            color: _position == null ? AppColors.tertiary : AppColors.success,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildForm() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+  Widget _buildEmergencyPanel() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacitySafe(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Location
           const Text(
-            'Mahali Pako',
+            'Immediate alert',
             style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.dark,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: AppColors.muted,
             ),
           ),
-          const SizedBox(height: 8),
-          LocationCard(
-            address: _address,
-            isLoading: _locationLoading,
-            onRefresh: _fetchLocation,
+          const SizedBox(height: 12),
+          SosButton(
+            onPressed: () => setState(() => _expanded = true),
+            isLoading: _submitting,
           ),
-
-          const SizedBox(height: 20),
-
-          // Severity
-          SeverityPicker(
-            selected: _severity,
-            onSelect: (val) => setState(() => _severity = val),
-          ),
-
-          const SizedBox(height: 20),
-
-          // Description
-          const Text(
-            'Maelezo (hiari)',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.dark,
+          const SizedBox(height: 12),
+          Text(
+            _expanded
+                ? 'Review the details below before sending the report.'
+                : 'Tap SOS to open the report form.',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppColors.muted,
+              fontWeight: FontWeight.w500,
             ),
+            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _descriptionController,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Elezea hali ya moto...',
-              hintStyle: TextStyle(color: AppColors.muted),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Phone
-          const Text(
-            'Nambari yako (hiari)',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.dark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _phoneController,
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              hintText: '07XXXXXXXX',
-              hintStyle: TextStyle(color: AppColors.muted),
-              prefixIcon: Icon(Icons.phone, color: AppColors.muted, size: 20),
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          // Submit
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _submitting ? null : _submitIncident,
-              child: _submitting
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2.5,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.fire_truck_rounded, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'TUMA RIPOTI',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Emergency contact
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withOpacitySafe(0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.secondary.withOpacitySafe(0.15),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniAction(
+                  icon: Icons.phone_rounded,
+                  label: AppConstants.emergencyNumber,
+                  onTap: () =>
+                      _showSnack('Use the emergency call button on About'),
+                ),
               ),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, color: AppColors.secondary, size: 18),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Piga simu: 0800 723 999 kwa dharura ya haraka',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondary,
-                      fontWeight: FontWeight.w500,
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MiniAction(
+                  icon: Icons.location_on_rounded,
+                  label: _locationLoading ? 'Locating...' : 'Refresh location',
+                  onTap: _fetchLocation,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormPanel() {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeInOut,
+      child: !_expanded
+          ? const SizedBox.shrink()
+          : Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacitySafe(0.05),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _SectionTitle(
+                    icon: Icons.my_location_rounded,
+                    title: 'Location',
+                    subtitle: 'Confirm where the incident is happening.',
+                  ),
+                  const SizedBox(height: 10),
+                  LocationCard(
+                    address: _address,
+                    isLoading: _locationLoading,
+                    onRefresh: _fetchLocation,
+                  ),
+                  const SizedBox(height: 18),
+                  const _SectionTitle(
+                    icon: Icons.local_fire_department_rounded,
+                    title: 'Severity',
+                    subtitle: 'Select the response intensity.',
+                  ),
+                  const SizedBox(height: 10),
+                  SeverityPicker(
+                    selected: _severity,
+                    onSelect: (value) => setState(() => _severity = value),
+                  ),
+                  const SizedBox(height: 18),
+                  const _SectionTitle(
+                    icon: Icons.notes_rounded,
+                    title: 'Incident notes',
+                    subtitle: 'Add extra details if needed.',
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText:
+                          'Describe smoke, flames, casualties, access issues...',
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  const _SectionTitle(
+                    icon: Icons.phone_rounded,
+                    title: 'Contact number',
+                    subtitle:
+                        'Optional, used only if responders need to call back.',
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _phoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      hintText: '07XXXXXXXX',
+                      prefixIcon: Icon(Icons.phone_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: _submitting ? null : _submitIncident,
+                      icon: _submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.send_rounded, size: 18),
+                      label: Text(
+                        _submitting ? 'Sending...' : 'Send report',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _buildFooterNote() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.secondary.withOpacitySafe(0.06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.secondary.withOpacitySafe(0.14)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded,
+              color: AppColors.secondary, size: 18),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Keep the device on and stay clear of the fire. The map and dispatch flow will guide the nearest responders.',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: AppColors.secondary,
+                height: 1.45,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacitySafe(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 18),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.dark,
                 ),
-              ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniAction extends StatelessWidget {
+  const _MiniAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.secondary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.dark,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacitySafe(0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 8),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

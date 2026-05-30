@@ -12,7 +12,7 @@ class AppConstants {
   );
 
   // App
-  static const String appName = 'FireFix';
+  static const String appName = 'Karada';
   static const String emergencyNumber = '0800 723 999';
 
   // Severity levels

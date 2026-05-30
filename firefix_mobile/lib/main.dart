@@ -20,7 +20,7 @@ void main() {
       statusBarBrightness: Brightness.light,
     ),
   );
-  runApp(const ProviderScope(child: FireFixApp()));
+  runApp(const ProviderScope(child: KaradaApp()));
 }
 
 final _router = GoRouter(
@@ -59,13 +59,13 @@ final _router = GoRouter(
   ],
 );
 
-class FireFixApp extends StatelessWidget {
-  const FireFixApp({super.key});
+class KaradaApp extends StatelessWidget {
+  const KaradaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'FireFix',
+      title: 'Karada',
       theme: AppTheme.light,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
@@ -113,64 +113,72 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       body: child,
       bottomNavigationBar: Container(
+        margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
         decoration: BoxDecoration(
-          color: AppColors.white.withOpacitySafe(0.96),
-          border: const Border(top: BorderSide(color: AppColors.border)),
+          color: AppColors.white.withOpacitySafe(0.98),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacitySafe(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, -2),
+              color: Colors.black.withOpacitySafe(0.1),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: SafeArea(
           top: false,
-          child: NavigationBarTheme(
-            data: NavigationBarThemeData(
-              backgroundColor: Colors.transparent,
-              indicatorColor: AppColors.primary.withOpacitySafe(0.12),
-              labelTextStyle: WidgetStateProperty.resolveWith(
-                (states) => TextStyle(
-                  fontSize: 11,
-                  fontWeight: states.contains(WidgetState.selected)
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  color: states.contains(WidgetState.selected)
-                      ? AppColors.primary
-                      : AppColors.muted,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+            child: NavigationBarTheme(
+              data: NavigationBarThemeData(
+                backgroundColor: Colors.transparent,
+                indicatorColor: AppColors.primary.withOpacitySafe(0.12),
+                indicatorShape: const StadiumBorder(),
+                labelTextStyle: WidgetStateProperty.resolveWith(
+                  (states) => TextStyle(
+                    fontSize: 11,
+                    fontWeight: states.contains(WidgetState.selected)
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                    color: states.contains(WidgetState.selected)
+                        ? AppColors.primary
+                        : AppColors.muted,
+                  ),
+                ),
+                iconTheme: WidgetStateProperty.resolveWith(
+                  (states) => IconThemeData(
+                    color: states.contains(WidgetState.selected)
+                        ? AppColors.primary
+                        : AppColors.muted,
+                    size: 24,
+                  ),
                 ),
               ),
-              iconTheme: WidgetStateProperty.resolveWith(
-                (states) => IconThemeData(
-                  color: states.contains(WidgetState.selected)
-                      ? AppColors.primary
-                      : AppColors.muted,
-                  size: 24,
-                ),
+              child: NavigationBar(
+                selectedIndex: index,
+                height: 68,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+                onDestinationSelected: (value) => _navigate(context, value),
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_rounded),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.crisis_alert_rounded),
+                    label: 'Report',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.map_rounded),
+                    label: 'Map',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.info_outline_rounded),
+                    label: 'About',
+                  ),
+                ],
               ),
-            ),
-            child: NavigationBar(
-              selectedIndex: index,
-              onDestinationSelected: (value) => _navigate(context, value),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_rounded),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.crisis_alert_rounded),
-                  label: 'Report',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.map_rounded),
-                  label: 'Map',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.info_outline_rounded),
-                  label: 'About',
-                ),
-              ],
             ),
           ),
         ),
