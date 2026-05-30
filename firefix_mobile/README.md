@@ -13,6 +13,7 @@ flutter run \
 ```
 
 If `MAP_BACKEND_BASE_URL` is not set, the app falls back to direct Overpass and OpenRouteService calls from the device.
+By default, the app points at `https://karada-map-backend.onrender.com`.
 
 ## Map backend
 

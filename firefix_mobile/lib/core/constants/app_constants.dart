@@ -6,6 +6,7 @@ class AppConstants {
   static const String incidentEndpoint = '/incidents';
   static const String mapBackendBaseUrl = String.fromEnvironment(
     'MAP_BACKEND_BASE_URL',
+    defaultValue: 'https://karada-map-backend.onrender.com',
   );
   static const String openRouteApiKey = String.fromEnvironment(
     'OPENROUTE_API_KEY',
