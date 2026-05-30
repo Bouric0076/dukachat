@@ -138,10 +138,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (facilities.isNotEmpty) {
         await _selectFacility(facilities.first, fitMap: true);
       }
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _error = 'Could not load nearby responders. Check your connection.';
+        _error = error.toString();
         _facilities = [];
       });
     } finally {
@@ -157,20 +157,26 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _selectedFacility = facility;
       _loadingRoute = true;
       _route = null;
+      _error = null;
     });
 
-    final route = await _mapService.fetchDrivingRoute(
-      from: _userLatLng,
-      to: facility.location,
-    );
-    if (!mounted) return;
+    try {
+      final route = await _mapService.fetchDrivingRoute(
+        from: _userLatLng,
+        to: facility.location,
+      );
+      if (!mounted) return;
 
-    setState(() {
-      _route = route;
-      _loadingRoute = false;
-    });
-
-    if (fitMap) _fitRoute(route.points);
+      setState(() => _route = route);
+      if (fitMap) _fitRoute(route.points);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _loadingRoute = false);
+    }
   }
 
   void _fitRoute(List<LatLng> points) {

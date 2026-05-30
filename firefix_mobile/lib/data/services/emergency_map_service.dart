@@ -1,13 +1,51 @@
+import 'dart:developer' as developer;
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../core/constants/app_constants.dart';
 import '../models/emergency_facility.dart';
 
 class EmergencyMapService {
-  EmergencyMapService({Dio? dio}) : _dio = dio ?? Dio();
+  EmergencyMapService({Dio? dio}) : _dio = dio ?? Dio() {
+    _dio.options = BaseOptions(
+      connectTimeout: const Duration(seconds: 12),
+      receiveTimeout: const Duration(seconds: 20),
+      sendTimeout: const Duration(seconds: 12),
+      responseType: ResponseType.json,
+    );
+
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            developer.log(
+              '→ ${options.method} ${options.uri}',
+              name: 'KaradaMap',
+            );
+            handler.next(options);
+          },
+          onResponse: (response, handler) {
+            developer.log(
+              '← ${response.statusCode} ${response.requestOptions.uri}',
+              name: 'KaradaMap',
+            );
+            handler.next(response);
+          },
+          onError: (error, handler) {
+            developer.log(
+              '× ${error.requestOptions.method} ${error.requestOptions.uri} '
+              '${error.response?.statusCode ?? ''} ${error.message}',
+              name: 'KaradaMap',
+            );
+            handler.next(error);
+          },
+        ),
+      );
+    }
+  }
 
   static const _overpassUrl = 'https://overpass-api.de/api/interpreter';
   static const _openRouteBaseUrl = 'https://api.openrouteservice.org';
@@ -15,46 +53,44 @@ class EmergencyMapService {
   final Dio _dio;
   final Distance _distance = const Distance();
 
+  bool get _hasBackend => AppConstants.mapBackendBaseUrl.isNotEmpty;
+
   Future<List<EmergencyFacility>> fetchNearbyFacilities({
     required LatLng center,
     int radiusMeters = 10000,
   }) async {
-    if (AppConstants.mapBackendBaseUrl.isNotEmpty) {
-      try {
-        final response = await _dio.get(
-          '${AppConstants.mapBackendBaseUrl}/facilities',
-          queryParameters: {
-            'lat': center.latitude,
-            'lng': center.longitude,
-            'radius': radiusMeters,
-          },
-        );
+    if (_hasBackend) {
+      final response = await _dio.get(
+        '${AppConstants.mapBackendBaseUrl}/facilities',
+        queryParameters: {
+          'lat': center.latitude,
+          'lng': center.longitude,
+          'radius': radiusMeters,
+        },
+      );
 
-        final facilities = (response.data['facilities'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map(
-              (item) => EmergencyFacility(
-                id: item['id'] as String? ?? '',
-                name: item['name'] as String? ?? 'Unknown responder',
-                type: (item['type'] as String? ?? 'medical') == 'fire'
-                    ? EmergencyFacilityType.fireStation
-                    : EmergencyFacilityType.medical,
-                location: LatLng(
-                  (item['lat'] as num).toDouble(),
-                  (item['lng'] as num).toDouble(),
-                ),
-                phone: item['phone'] as String?,
-                address: item['address'] as String?,
-                distanceMeters: (item['distanceMeters'] as num).toDouble(),
+      final facilities = (response.data['facilities'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (item) => EmergencyFacility(
+              id: item['id'] as String? ?? '',
+              name: item['name'] as String? ?? 'Unknown responder',
+              type: (item['type'] as String? ?? 'medical') == 'fire'
+                  ? EmergencyFacilityType.fireStation
+                  : EmergencyFacilityType.medical,
+              location: LatLng(
+                (item['lat'] as num).toDouble(),
+                (item['lng'] as num).toDouble(),
               ),
-            )
-            .toList()
-          ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+              phone: item['phone'] as String?,
+              address: item['address'] as String?,
+              distanceMeters: (item['distanceMeters'] as num).toDouble(),
+            ),
+          )
+          .toList()
+        ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
 
-        return facilities;
-      } catch (_) {
-        // Fall back to direct OSM lookup when the backend is unavailable.
-      }
+      return _dedupeFacilities(facilities);
     }
 
     final query = '''
@@ -79,10 +115,7 @@ out center tags;
     final response = await _dio.post(
       _overpassUrl,
       data: query,
-      options: Options(
-        contentType: Headers.textPlainContentType,
-        responseType: ResponseType.json,
-      ),
+      options: Options(contentType: Headers.textPlainContentType),
     );
 
     final elements = (response.data['elements'] as List? ?? const [])
@@ -94,52 +127,39 @@ out center tags;
         .toList()
       ..sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
 
-    final seen = <String>{};
-    return facilities
-        .where((facility) {
-          final key = facility.name.toLowerCase().trim();
-          if (seen.contains(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .take(30)
-        .toList();
+    return _dedupeFacilities(facilities);
   }
 
   Future<EmergencyRoute> fetchDrivingRoute({
     required LatLng from,
     required LatLng to,
   }) async {
-    if (AppConstants.mapBackendBaseUrl.isNotEmpty) {
-      try {
-        final response = await _dio.post(
-          '${AppConstants.mapBackendBaseUrl}/route',
-          data: {
-            'from': {'lat': from.latitude, 'lng': from.longitude},
-            'to': {'lat': to.latitude, 'lng': to.longitude},
-          },
-        );
+    if (_hasBackend) {
+      final response = await _dio.post(
+        '${AppConstants.mapBackendBaseUrl}/route',
+        data: {
+          'from': {'lat': from.latitude, 'lng': from.longitude},
+          'to': {'lat': to.latitude, 'lng': to.longitude},
+        },
+      );
 
-        final route = response.data['route'] as Map<String, dynamic>;
-        final points = (route['points'] as List)
-            .whereType<Map<String, dynamic>>()
-            .map(
-              (point) => LatLng(
-                (point['lat'] as num).toDouble(),
-                (point['lng'] as num).toDouble(),
-              ),
-            )
-            .toList();
+      final route = response.data['route'] as Map<String, dynamic>;
+      final points = (route['points'] as List)
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (point) => LatLng(
+              (point['lat'] as num).toDouble(),
+              (point['lng'] as num).toDouble(),
+            ),
+          )
+          .toList();
 
-        return EmergencyRoute(
-          points: points,
-          distanceMeters: (route['distanceMeters'] as num).toDouble(),
-          durationSeconds: (route['durationSeconds'] as num).toDouble(),
-          isEstimated: route['isEstimated'] as bool? ?? false,
-        );
-      } catch (_) {
-        // Fall through to direct ORS lookup and the local estimate.
-      }
+      return EmergencyRoute(
+        points: points,
+        distanceMeters: (route['distanceMeters'] as num).toDouble(),
+        durationSeconds: (route['durationSeconds'] as num).toDouble(),
+        isEstimated: route['isEstimated'] as bool? ?? false,
+      );
     }
 
     if (AppConstants.openRouteApiKey.isEmpty) {
@@ -157,7 +177,6 @@ out center tags;
         },
         options: Options(
           headers: {'Authorization': AppConstants.openRouteApiKey},
-          responseType: ResponseType.json,
         ),
       );
 
@@ -167,10 +186,12 @@ out center tags;
       final summary = properties['summary'] as Map<String, dynamic>;
       final coordinates = (geometry['coordinates'] as List)
           .whereType<List>()
-          .map((point) => LatLng(
-                (point[1] as num).toDouble(),
-                (point[0] as num).toDouble(),
-              ))
+          .map(
+            (point) => LatLng(
+              (point[1] as num).toDouble(),
+              (point[0] as num).toDouble(),
+            ),
+          )
           .toList();
 
       return EmergencyRoute(
@@ -182,6 +203,19 @@ out center tags;
     } catch (_) {
       return _estimatedRoute(from, to);
     }
+  }
+
+  List<EmergencyFacility> _dedupeFacilities(List<EmergencyFacility> items) {
+    final seen = <String>{};
+    return items
+        .where((facility) {
+          final key = facility.name.toLowerCase().trim();
+          if (seen.contains(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .take(30)
+        .toList();
   }
 
   EmergencyFacility? _facilityFromOverpass(
