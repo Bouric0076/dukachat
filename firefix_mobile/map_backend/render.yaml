@@ -3,7 +3,7 @@ services:
     name: karada-map-backend
     env: node
     plan: free
-    rootDir: .
+    rootDir: firefix_mobile/map_backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health
