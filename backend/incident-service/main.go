@@ -1,15 +1,47 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 )
+
+// forwardEvent forwards database events to the services/api WebSocket gateway asynchronously
+func forwardEvent(eventType string, payload interface{}) {
+	go func() {
+		apiURL := os.Getenv("API_GATEWAY_URL")
+		if apiURL == "" {
+			apiURL = "http://localhost:5000" // default gateway port
+		}
+
+		eventPayload := map[string]interface{}{
+			"type":    eventType,
+			"payload": payload,
+		}
+
+		data, err := json.Marshal(eventPayload)
+		if err != nil {
+			log.Printf("Failed to marshal event payload: %v", err)
+			return
+		}
+
+		resp, err := http.Post(apiURL+"/api/events", "application/json", bytes.NewBuffer(data))
+		if err != nil {
+			log.Printf("Failed to forward event to API gateway: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+	}()
+}
+
 
 // CORSMiddleware enables CORS for hackathon development
 func CORSMiddleware() gin.HandlerFunc {
@@ -46,6 +78,9 @@ func CreateIncidentHandler(svc *IncidentService) gin.HandlerFunc {
 			c.JSON(500, gin.H{"error": "Internal server error"})
 			return
 		}
+
+		// Forward created event to WebSocket gateway
+		forwardEvent("incident_created", inc)
 
 		c.JSON(201, inc)
 	}
@@ -147,6 +182,9 @@ func UpdateIncidentStatusHandler(svc *IncidentService) gin.HandlerFunc {
 			return
 		}
 
+		// Forward updated event to WebSocket gateway
+		forwardEvent("status_updated", inc)
+
 		c.JSON(200, inc)
 	}
 }
@@ -208,6 +246,9 @@ func InboundSMSHandler(svc *IncidentService) gin.HandlerFunc {
 			c.JSON(500, gin.H{"error": "Failed to store SMS incident"})
 			return
 		}
+
+		// Forward SMS-created event to WebSocket gateway
+		forwardEvent("incident_created", inc)
 
 		c.JSON(201, inc)
 	}
