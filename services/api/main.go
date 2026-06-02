@@ -10,7 +10,7 @@ import (
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "5000"
+		port = "8090"
 	}
 
 	// In-memory store (swap for PostgreSQL in Phase 8)
